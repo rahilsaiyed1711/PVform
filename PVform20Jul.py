@@ -4,7 +4,10 @@ from flask import Flask, request, jsonify, render_template_string
 # Assuming you have a BigQuery client and query already set up
 from google.cloud import bigquery
 from google.oauth2 import service_account
-
+credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
+project_id = 'agel-svc-winddata-dmz-prod'
+client = bigquery.Client(credentials= credentials,project=project_id)
+table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
 selectQuery = """SELECT * FROM agel-svc-winddata-dmz-prod.winddata.Pvform1"""
 
 df = client.query(selectQuery).to_dataframe()
@@ -19,7 +22,7 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return render_template_string("""
-    <!DOCTYPE html>
+   <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -34,13 +37,13 @@ def home():
         }
 
         h1 {
-          font-size:5rem;
+            font-size: 5rem;
             color: #333;
             text-align: center;
             animation: colorChange infinite 3s;
-          
         }
-         @keyframes colorChange {
+
+        @keyframes colorChange {
             0% { color: #0a7caa; }
             25% { color: #5b58a5; }
             50% { color: #0056b3; }
@@ -121,34 +124,55 @@ def home():
         td[contenteditable="true"]:hover {
             background-color: #fffacd;
         }
+
         .logo {
-               position: absolute;
-               top: 20px;
-               left: 20px;
-               width: 150px; /* Adjust size as needed */
-           }
-        .search-bar{
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 150px; /* Adjust size as needed */
+        }
+
+        .search-bar {
             display: block;
-            width : 300px;
-            padding : 10px;
+            width: 300px;
+            padding: 10px;
             margin: 20px auto;
             background-color: #fff;
-            border : 2px solid #007BFF;
+            border: 2px solid #007BFF;
             border-radius: 5px;
-            font-size:16px;
-            transition: border-color 0.3s ease box-shadow 0.3s ease;
-            }
-        .sarch-bar:focus{
-            border-color:#005bb3;
-            box-shadow:0 0 8px rgba(0,91,187,0.5);
-            outline:none;
-            }
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .search-bar:focus {
+            border-color: #005bb3;
+            box-shadow: 0 0 8px rgba(0, 91, 187, 0.5);
+            outline: none;
+        }
+
+        .dropdown {
+            display: block;
+            width: 300px;
+            padding: 10px;
+            margin: 20px auto;
+            background-color: #fff;
+            border: 2px solid #007BFF;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
     </style>
 </head>
 <body>
-<img src="https://logowik.com/content/uploads/images/adani-renewables-green-energy1681.logowik.com.webp" alt="Company Logo" class="logo">
+    <img src="https://logowik.com/content/uploads/images/adani-renewables-green-energy1681.logowik.com.webp" alt="Company Logo" class="logo">
     <h1>PV Form</h1>
-    
+
+    <select class="dropdown" id="plantDropdown" onchange="selectPlant()">
+        <option value="Plant 1">Plant 1</option>
+        <option value="Plant 2">Plant 2</option>
+        <option value="Plant 3">Plant 3</option>
+    </select>
+
     <div id="tabs"></div>
     <input type="text" placeholder="Search.." class="search-bar">
     <div id="data"></div>
@@ -156,6 +180,7 @@ def home():
 
     <script>
     let currentBlock = '';
+    let currentPlant = 'Plant 1';
 
     function createTabs(blocks) {
         const tabsContainer = document.getElementById('tabs');
@@ -169,9 +194,19 @@ def home():
         });
     }
 
+    function selectPlant() {
+        const dropdown = document.getElementById('plantDropdown');
+        currentPlant = dropdown.value;
+        if (currentPlant === 'Plant 1') {
+            loadData();
+        } else {
+            document.getElementById('data').innerHTML = '<table><tr><th>Column1</th><th>Column2</th></tr></table>';
+        }
+    }
+
     function loadData(block = currentBlock) {
         currentBlock = block;
-        fetch(`/load_data?block=${block}`)
+        fetch(`/load_data?block=${block}&plant=${currentPlant}`)
             .then(response => response.json())
             .then(data => {
                 let table = '<table><tr>';
@@ -204,7 +239,7 @@ def home():
             });
             data.push(row);
         }
-        fetch(`/save_data?block=${currentBlock}`, {
+        fetch(`/save_data?block=${currentBlock}&plant=${currentPlant}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -226,25 +261,40 @@ def home():
 @app.route('/load_data')
 def load_data():
     block = request.args.get('block', 'Block-1')
-    block_data = df[df['Block'] == block]
+    plant = request.args.get('plant','Plant-1')
+    if plant == 'Plant 1':
+        block_data = df[df['Block'] == block]
+    else:
+        # Return an empty structure for other plants
+        block_data = pd.DataFrame(columns=df.columns)
+   
     return jsonify(block_data.to_dict(orient='records'))
 
 @app.route('/save_data', methods=['POST'])
 def save_data():
     block = request.args.get('block', 'Block-1')
+    plant = request.args.get('plant', 'Plant 1')
     data = request.json
     block_df = pd.DataFrame(data)    
     # Remove the existing rows for the block and append the new data
     global df
-    df = df[df['Block'] != block].append(block_df, ignore_index=True)
-    df.to_csv(csv_file_path,index='false')    
-   
-    table = bigquery.Table(table_id)
-    job_config = bigquery.LoadJobConfig()
-    job_config.write_disposition = "WRITE_TRUNCATE" # Overwrite table truncate
-    df = df.astype(str)
-    job =client.load_table_from_dataframe(df, table,job_config=job_config)   
+    
+    if plant == 'Plant 1':
+        # Remove the existing rows for the block and append the new data
+        df = df[df['Block'] != block].append(block_df, ignore_index=True)
+        df.to_csv(csv_file_path, index=False)
+
+        credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
+        client = bigquery.Client(credentials=credentials, project=project_id)
+        table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
+        table = bigquery.Table(table_id)
+        job_config = bigquery.LoadJobConfig()
+        job_config.write_disposition = "WRITE_TRUNCATE"  # Overwrite table truncate
+        df = df.astype(str)
+        job = client.load_table_from_dataframe(df, table, job_config=job_config)
+    
     return jsonify({"message": "Data saved successfully"})
+
 
 # Function to create a public URL
 def create_public_url():
