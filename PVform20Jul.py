@@ -2,11 +2,20 @@ import pandas as pd
 from flask import Flask, request, jsonify, render_template_string
 
 # Assuming you have a BigQuery client and query already set up
-# client = bigquery.Client(credentials=credentials, project=project_id)
-# df = client.query(selectQuery).to_dataframe()
-df=pd.read_csv("D:\\OneDrive - Adani\\Documents\\PVform1.csv")
+from google.cloud import bigquery
+from google.oauth2 import service_account
+credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
+project_id = 'agel-svc-winddata-dmz-prod'
+client = bigquery.Client(credentials= credentials,project=project_id)
+table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
+selectQuery = """SELECT * FROM agel-svc-winddata-dmz-prod.winddata.Pvform1"""
 
+df = client.query(selectQuery).to_dataframe()
+
+#df=pd.read_csv("D:\\OneDrive - Adani\\Documents\\PVform1.csv")
+csv_file_path = "D:\\OneDrive - Adani\\Documents\\PVform1.csv"
 blk = df.Block.unique()
+#blk = sorted(blk , key = lambda x: int (x.split('-')[1]))
 
 app = Flask(__name__)
 
@@ -22,7 +31,7 @@ def home():
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            background-color: #ffffff;
             margin: 0;
             padding: 20px;
         }
@@ -115,12 +124,36 @@ def home():
         td[contenteditable="true"]:hover {
             background-color: #fffacd;
         }
+        .logo {
+               position: absolute;
+               top: 20px;
+               left: 20px;
+               width: 150px; /* Adjust size as needed */
+           }
+        .search-bar{
+            display: block;
+            width : 300px;
+            padding : 10px;
+            margin: 20px auto;
+            background-color: #fff;
+            border : 2px solid #007BFF;
+            border-radius: 5px;
+            font-size:16px;
+            transition: border-color 0.3s ease box-shadow 0.3s ease;
+            }
+        .sarch-bar:focus{
+            border-color:#005bb3;
+            box-shadow:0 0 8px rgba(0,91,187,0.5);
+            outline:none;
+            }
     </style>
 </head>
 <body>
+<img src="https://logowik.com/content/uploads/images/adani-renewables-green-energy1681.logowik.com.webp" alt="Company Logo" class="logo">
     <h1>PV Form</h1>
-    <div id="tabs"></div>
     
+    <div id="tabs"></div>
+    <input type="text" placeholder="Search.." class="search-bar">
     <div id="data"></div>
     <button onclick="saveData()">Save Data</button>
 
@@ -203,12 +236,20 @@ def load_data():
 def save_data():
     block = request.args.get('block', 'Block-1')
     data = request.json
-    block_df = pd.DataFrame(data)
-    
+    block_df = pd.DataFrame(data)    
     # Remove the existing rows for the block and append the new data
     global df
     df = df[df['Block'] != block].append(block_df, ignore_index=True)
-    
+    df.to_csv(csv_file_path,index='false')    
+    credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
+    project_id = 'agel-svc-winddata-dmz-prod'
+    client = bigquery.Client(credentials= credentials,project=project_id)    
+    table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
+    table = bigquery.Table(table_id)
+    job_config = bigquery.LoadJobConfig()
+    job_config.write_disposition = "WRITE_TRUNCATE" # Overwrite table truncate
+    df = df.astype(str)
+    job =client.load_table_from_dataframe(df, table,job_config=job_config)   
     return jsonify({"message": "Data saved successfully"})
 
 # Function to create a public URL
