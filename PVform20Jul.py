@@ -4,16 +4,13 @@ from flask import Flask, request, jsonify, render_template_string
 # Assuming you have a BigQuery client and query already set up
 from google.cloud import bigquery
 from google.oauth2 import service_account
-credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
-project_id = 'agel-svc-winddata-dmz-prod'
-client = bigquery.Client(credentials= credentials,project=project_id)
-table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
+
 selectQuery = """SELECT * FROM agel-svc-winddata-dmz-prod.winddata.Pvform1"""
 
 df = client.query(selectQuery).to_dataframe()
 
 #df=pd.read_csv("D:\\OneDrive - Adani\\Documents\\PVform1.csv")
-csv_file_path = "D:\\OneDrive - Adani\\Documents\\PVform1.csv"
+
 blk = df.Block.unique()
 #blk = sorted(blk , key = lambda x: int (x.split('-')[1]))
 
@@ -283,13 +280,7 @@ def save_data():
         # Remove the existing rows for the block and append the new data
         df = df[df['Block'] != block].append(block_df, ignore_index=True)
         df.to_csv(csv_file_path, index=False)
-
-        credentials = service_account.Credentials.from_service_account_file('D:/OneDrive - Adani/Rcode_Adani_Auto/Mypy/agel-svc-winddata-dmz-prod-fdac36bf5880.json')
-        client = bigquery.Client(credentials=credentials, project=project_id)
-        table_id = "agel-svc-winddata-dmz-prod.winddata.Pvform1"
-        table = bigquery.Table(table_id)
-        job_config = bigquery.LoadJobConfig()
-        job_config.write_disposition = "WRITE_TRUNCATE"  # Overwrite table truncate
+  # Overwrite table truncate
         df = df.astype(str)
         job = client.load_table_from_dataframe(df, table, job_config=job_config)
     
