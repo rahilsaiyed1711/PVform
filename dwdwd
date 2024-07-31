@@ -1,0 +1,4 @@
+   invMake = rt.INVMake.unique().astype(str)
+    invModel = rt.INVERTERModel.unique().astype(str)
+    modMake = rt.Modulemake.unique().astype(str)
+    ModModel = rt.ModuleModel.unique().astype(str)
